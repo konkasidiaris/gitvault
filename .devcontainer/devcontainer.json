@@ -1,0 +1,19 @@
+{
+    "name": "gitvault",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "gopls": {
+                    "ui.semanticTokens": true
+                }
+            },
+            "extensions": [
+                "golang.go"
+            ]
+        }
+    },
+    "remoteUser": "vscode"
+}
