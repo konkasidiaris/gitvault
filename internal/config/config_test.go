@@ -1,23 +1,36 @@
 package config
 
 import (
-	"log"
-	"os"
-	"path/filepath"
+	"errors"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 )
 
-type ConfigTestSuite struct {
-	suite.Suite
+type mockConfigLoader struct {
+	config *GitVaultFileConfig
+	err    error
 }
 
-var ghFile *os.File
+func (m *mockConfigLoader) Load(filepath string) (*GitVaultFileConfig, error) {
+	return m.config, m.err
+}
 
-const githubTestToken = "test-github-token"
+func mockConfig(t *testing.T, c *GitVaultFileConfig, e error) {
+	t.Helper()
+
+	originalLoader := configLoader
+	configLoader = &mockConfigLoader{
+		config: c,
+		err:    e,
+	}
+
+	t.Cleanup(func() {
+		configLoader = originalLoader
+		reset()
+	})
+}
 
 func reset() {
 	instance = nil
@@ -25,68 +38,106 @@ func reset() {
 	loadErr = nil
 }
 
-func TestConfigSuite(t *testing.T) {
-	suite.Run(t, new(ConfigTestSuite))
-}
-
-func (s *ConfigTestSuite) SetupTest() {
-	reset()
-	var err error
-	secretsBasePath = s.T().TempDir()
-	path := filepath.Join(secretsBasePath, "github-token.txt")
-	ghFile, err = os.Create(path)
-	if err != nil {
-		log.Fatalf("Could not create github token text file, e:%e", err)
+func TestGet_Success(t *testing.T) {
+	mockGitVaultConfig := &GitVaultFileConfig{
+		GitHubToken:    "test-github-token",
+		GitHubUsername: "test-github-username",
 	}
+	mockConfig(t, mockGitVaultConfig, nil)
 
-	data := []byte("test-github-token\n")
-	err = os.WriteFile(path, data, 0644)
+	assert.Nil(t, instance)
+	assert.Nil(t, loadErr)
+	cfg, err := Get()
 
-	if err != nil {
-		log.Fatalf("Could not write to test file, e:%e", err)
+	assert.NoError(t, err)
+	assert.NotNil(t, instance)
+	assert.Nil(t, loadErr)
+	assert.Equal(t, version, cfg.Version)
+	assert.Equal(t, "test-github-token", cfg.GitHubToken)
+}
+
+func TestGet_LoadingGitVaultConfigError(t *testing.T) {
+	mockConfig(t, nil, errors.New("Missing file"))
+	cfg, err := Get()
+
+	assert.EqualError(t, err, "[Config] error while loading /secrets/gitvault.json: Missing file")
+	assert.True(t, cfg == nil)
+}
+
+func TestGet_MissingGitHubToken(t *testing.T) {
+	mockGitVaultConfig := &GitVaultFileConfig{
+		GitHubToken:    "",
+		GitHubUsername: "test-github-username",
 	}
-}
-
-func (s *ConfigTestSuite) TearDownTest() {
-	reset()
-
-	os.Remove(ghFile.Name())
-}
-
-func (s *ConfigTestSuite) TestGet() {
+	mockConfig(t, mockGitVaultConfig, nil)
 	cfg, err := Get()
 
-	assert.NoError(s.T(), err)
-	assert.Equal(s.T(), version, cfg.Version)
-	assert.Equal(s.T(), githubTestToken, cfg.GitHubToken)
+	assert.EqualError(t, err, "[Config] GitHub token is either missing or empty")
+	assert.True(t, cfg == nil)
 }
 
-func (s *ConfigTestSuite) TestGet_MissingGitHubTokenFile() {
-	os.Remove(ghFile.Name())
+func TestGet_MissingGitHubUsername(t *testing.T) {
+	mockGitVaultConfig := &GitVaultFileConfig{
+		GitHubToken:    "test-github-token",
+		GitHubUsername: "",
+	}
+	mockConfig(t, mockGitVaultConfig, nil)
 	cfg, err := Get()
 
-	assert.EqualError(s.T(), err, "github-token.txt is missing OR github token cannot be an empty string")
-	assert.Equal(s.T(), version, cfg.Version)
-	assert.Equal(s.T(), "", cfg.GitHubToken)
+	assert.EqualError(t, err, "[Config] GitHub Username is either missing or empty")
+	assert.True(t, cfg == nil)
 }
 
-func (s *ConfigTestSuite) TestGet_EmptyGitHubTokenFile() {
-	ghFile.Truncate(0)
-	cfg, err := Get()
+func TestGetGitVaultVersion_Success(t *testing.T) {
+	mockGitVaultConfig := &GitVaultFileConfig{
+		GitHubToken:    "test-github-token",
+		GitHubUsername: "test-github-username",
+	}
+	mockConfig(t, mockGitVaultConfig, nil)
 
-	assert.EqualError(s.T(), err, "github-token.txt is missing OR github token cannot be an empty string")
-	assert.Equal(s.T(), version, cfg.Version)
-	assert.Equal(s.T(), "", cfg.GitHubToken)
-}
-
-func (s *ConfigTestSuite) TestGetGitVaultVersion() {
+	assert.Nil(t, instance)
+	assert.Nil(t, loadErr)
 	localVersion := GetGitVaultVersion()
+	assert.Equal(t, version, localVersion)
 
-	assert.Equal(s.T(), version, localVersion)
+	assert.NotNil(t, instance)
+	assert.Nil(t, loadErr)
+	localVersion = GetGitVaultVersion()
+	assert.Equal(t, version, localVersion)
 }
 
-func (s *ConfigTestSuite) TestGetGitHubToken() {
-	token := GetGitHubToken()
+func TestGetGitHubToken_Success(t *testing.T) {
+	mockGitVaultConfig := &GitVaultFileConfig{
+		GitHubToken:    "test-github-token",
+		GitHubUsername: "test-github-username",
+	}
+	mockConfig(t, mockGitVaultConfig, nil)
 
-	assert.Equal(s.T(), githubTestToken, token)
+	assert.Nil(t, instance)
+	assert.Nil(t, loadErr)
+	token := GetGitHubToken()
+	assert.Equal(t, "test-github-token", token)
+
+	assert.NotNil(t, instance)
+	assert.Nil(t, loadErr)
+	token = GetGitHubToken()
+	assert.Equal(t, "test-github-token", token)
+}
+
+func TestGetGitHubUsername_Success(t *testing.T) {
+	mockGitVaultConfig := &GitVaultFileConfig{
+		GitHubToken:    "test-github-token",
+		GitHubUsername: "test-github-username",
+	}
+	mockConfig(t, mockGitVaultConfig, nil)
+
+	assert.Nil(t, instance)
+	assert.Nil(t, loadErr)
+	username := GetGitHubUsername()
+	assert.Equal(t, "test-github-username", username)
+
+	assert.NotNil(t, instance)
+	assert.Nil(t, loadErr)
+	username = GetGitHubUsername()
+	assert.Equal(t, "test-github-username", username)
 }

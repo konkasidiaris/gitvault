@@ -1,20 +1,28 @@
 package config
 
 import (
-	"errors"
-	"os"
-	"path/filepath"
-	"strings"
+	"fmt"
 	"sync"
 )
 
 const version = "v0.0.1"
 
-var secretsBasePath = "/secrets" // declaring this here, to be able to change it in tests
+type ConfigLoader interface {
+	Load(filepath string) (*GitVaultFileConfig, error)
+}
+
+type FileConfigLoader struct{}
+
+func (f *FileConfigLoader) Load(filepath string) (*GitVaultFileConfig, error) {
+	return LoadConfig(filepath)
+}
+
+var configLoader ConfigLoader = &FileConfigLoader{}
 
 type Config struct {
-	Version     string
-	GitHubToken string
+	Version        string
+	GitHubToken    string
+	GitHubUsername string
 }
 
 var (
@@ -23,30 +31,29 @@ var (
 	loadErr  error
 )
 
-func readSecretFromFile(filepath string) (string, error) {
-	data, err := os.ReadFile(filepath)
-	if err != nil {
-		return "", err
-	}
-
-	trimmedString := strings.TrimSpace(string(data))
-
-	return trimmedString, nil
-}
-
 func Get() (*Config, error) {
 	once.Do(
 		func() {
-			path := filepath.Join(secretsBasePath, "github-token.txt")
-			githubToken, err := readSecretFromFile(path)
+			fileConfig, err := configLoader.Load("/secrets/gitvault.json")
+			if err != nil {
+				loadErr = fmt.Errorf("[Config] error while loading /secrets/gitvault.json: %w", err)
+				return
+			}
 
-			if err != nil || githubToken == "" {
-				loadErr = errors.New("github-token.txt is missing OR github token cannot be an empty string")
+			if fileConfig.GitHubToken == "" {
+				loadErr = fmt.Errorf("[Config] GitHub token is either missing or empty")
+				return
+			}
+
+			if fileConfig.GitHubUsername == "" {
+				loadErr = fmt.Errorf("[Config] GitHub Username is either missing or empty")
+				return
 			}
 
 			instance = &Config{
-				Version:     version,
-				GitHubToken: githubToken,
+				Version:        version,
+				GitHubToken:    fileConfig.GitHubToken,
+				GitHubUsername: fileConfig.GitHubUsername,
 			}
 		},
 	)
@@ -68,4 +75,12 @@ func GetGitHubToken() string {
 	}
 
 	return instance.GitHubToken
+}
+
+func GetGitHubUsername() string {
+	if instance == nil {
+		Get()
+	}
+
+	return instance.GitHubUsername
 }
