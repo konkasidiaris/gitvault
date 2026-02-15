@@ -16,15 +16,37 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestClientDo_AddsUserAgent(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, UserAgent, r.Header.Get("User-Agent"))
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+	tests := []struct {
+		name      string
+		versionFn func() string
+		expected  string
+	}{
+		{
+			name:      "custom version",
+			versionFn: func() string { return "mocked version" },
+			expected:  "GitVault/mocked version",
+		},
+		{
+			name:      "empty version",
+			versionFn: func() string { return "" },
+			expected:  "GitVault/",
+		},
+	}
 
-	client := NewClient()
-	req, _ := http.NewRequest("GET", server.URL, nil)
-	resp, err := client.Do(req)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, tc.expected, r.Header.Get("User-Agent"))
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			client := newClientWithVersion(tc.versionFn)
+			req, _ := http.NewRequest("GET", server.URL, nil)
+
+			resp, err := client.Do(req)
+			assert.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+	}
 }

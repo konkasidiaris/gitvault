@@ -2,6 +2,7 @@ package github
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,12 @@ func newTestClient(baseURL, token, username string, httpClient *http.Client) *Cl
 		username: username,
 		http:     httpClient,
 	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestGetUserRepos_Success(t *testing.T) {
@@ -53,6 +60,27 @@ func TestGetUserRepos_Success(t *testing.T) {
 	}
 }
 
+func TestGetUserRepos_DoError(t *testing.T) {
+	httpClient := &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, errors.New("dial tcp: i/o timeout")
+		}),
+	}
+
+	client := newTestClient("https://api.github.com", "test-token", "testuser", httpClient)
+
+	repos, err := client.GetUserRepos()
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if repos != nil {
+		t.Fatalf("expected nil repos, got %#v", repos)
+	}
+	if !strings.Contains(err.Error(), "failed to fetch repositories") {
+		t.Fatalf("expected fetch error, got: %v", err)
+	}
+}
+
 func TestGetUserRepos_EmptyResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -68,6 +96,21 @@ func TestGetUserRepos_EmptyResponse(t *testing.T) {
 	}
 	if len(repos) != 0 {
 		t.Fatalf("len(repos) = %d, want 0", len(repos))
+	}
+}
+
+func TestGetUserRepos_RequestCreationError(t *testing.T) {
+	client := newTestClient("://bad-base-url", "test-token", "testuser", &http.Client{})
+
+	repos, err := client.GetUserRepos()
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if repos != nil {
+		t.Fatalf("expected nil repos, got %#v", repos)
+	}
+	if !strings.Contains(err.Error(), "failed to create request") {
+		t.Fatalf("expected request creation error, got: %v", err)
 	}
 }
 
