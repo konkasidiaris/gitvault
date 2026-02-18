@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/konkasidiaris/gitvault/internal/config"
 )
 
 const (
-	baseURL = "https://api.github.com"
+	defaultBaseURL = "https://api.github.com"
 )
 
 type Repository struct {
@@ -25,9 +26,16 @@ type Client struct {
 	http     *http.Client
 }
 
+func getBaseURL() string {
+	if url := os.Getenv("GITVAULT_GITHUB_BASE_URL"); url != "" {
+		return url
+	}
+	return defaultBaseURL
+}
+
 func NewClient() *Client {
 	return &Client{
-		baseURL:  baseURL,
+		baseURL:  getBaseURL(),
 		token:    config.GetGitHubToken(),
 		username: config.GetGitHubUsername(),
 		http:     &http.Client{},
