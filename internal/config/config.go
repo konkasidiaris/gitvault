@@ -2,10 +2,12 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"sync"
 )
 
 const version = "v0.0.1"
+const defaultConfigPath = "/secrets/gitvault.json"
 
 type ConfigLoader interface {
 	Load(filepath string) (*GitVaultFileConfig, error)
@@ -31,12 +33,20 @@ var (
 	loadErr  error
 )
 
+func getConfigPath() string {
+	if path := os.Getenv("GITVAULT_CONFIG_PATH"); path != "" {
+		return path
+	}
+	return defaultConfigPath
+}
+
 func Get() (*Config, error) {
 	once.Do(
 		func() {
-			fileConfig, err := configLoader.Load("/secrets/gitvault.json")
+			configPath := getConfigPath()
+			fileConfig, err := configLoader.Load(configPath)
 			if err != nil {
-				loadErr = fmt.Errorf("[Config] error while loading /secrets/gitvault.json: %w", err)
+				loadErr = fmt.Errorf("[Config] error while loading %s: %w", configPath, err)
 				return
 			}
 
