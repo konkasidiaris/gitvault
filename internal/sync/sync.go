@@ -11,13 +11,20 @@ import (
 	"github.com/konkasidiaris/gitvault/internal/github"
 )
 
-const backupDirectory = "/backup"
+const defaultBackupDirectory = "/backup"
 
 var (
 	fetchGithubRepositories = getGithubRepositories
 	cloneMirrorFn           = gitCloneMirror
 	remoteUpdateFn          = gitRemoteUpdate
 )
+
+func getBackupDirectory() string {
+	if dir := os.Getenv("GITVAULT_BACKUP_DIR"); dir != "" {
+		return dir
+	}
+	return defaultBackupDirectory
+}
 
 func getGithubRepositories() ([]github.Repository, error) {
 	client := github.NewClient()
@@ -85,5 +92,5 @@ func run(dir string) error {
 }
 
 func Run() error {
-	return run(backupDirectory)
+	return run(getBackupDirectory())
 }
