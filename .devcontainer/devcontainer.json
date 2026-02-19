@@ -1,18 +1,26 @@
 {
     "name": "gitvault",
     "build": {
+        "args": {
+            "DOCKER_GID": "131"
+        },
         "dockerfile": "Dockerfile"
     },
-    "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2": {
-            "moby": false
-        }
-    },
+    "runArgs": [
+        "--name",
+        "gitvault-devcontainer"
+    ],
+    "mounts": [
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+    ],
     "customizations": {
         "vscode": {
             "settings": {
                 "gopls": {
-                    "ui.semanticTokens": true
+                    "ui.semanticTokens": true,
+                    "build.buildFlags": [
+                        "-tags=integration"
+                    ]
                 }
             },
             "extensions": [
@@ -20,5 +28,6 @@
             ]
         }
     },
-    "remoteUser": "vscode"
+    "initializeCommand": "export DOCKER_GID=",
+    "postStartCommand": "go mod tidy"
 }

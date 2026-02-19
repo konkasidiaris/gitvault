@@ -1,0 +1,25 @@
+{
+  "priority": 5,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/users/.*/repos"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": [
+      {
+        "id": 1,
+        "full_name": "testuser/repo-alpha",
+        "ssh_url": "https://github.com/testuser/repo-alpha.git"
+      },
+      {
+        "id": 2,
+        "full_name": "testuser/repo-beta",
+        "ssh_url": "https://github.com/testuser/repo-beta.git"
+      }
+    ]
+  }
+}
